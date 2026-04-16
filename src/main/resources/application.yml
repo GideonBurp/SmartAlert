@@ -62,7 +62,7 @@ sa-token:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+#    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       id-type: auto
@@ -81,7 +81,7 @@ rate:
 logging:
   level:
     root: INFO
-    cn.gideon.smartalert: DEBUG
+    cn.gideon.smartalert: INFO
   pattern:
     console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
 

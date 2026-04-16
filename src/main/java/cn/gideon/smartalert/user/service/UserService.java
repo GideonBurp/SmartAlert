@@ -105,8 +105,6 @@ public class UserService {
         redisTemplate.opsForValue().set(key, code, VERIFY_CODE_EXPIRE, TimeUnit.SECONDS);
         
         // TODO: 实际项目中需要调用短信服务发送验证码
-        //我现在想做一个到点主动推送信息的功能
-        //1. 用户录入信息, 包含主题, 信息被推送人姓名, 性别,手机号,
         log.info("手机号 {} 的验证码为: {}", telephone, code);
     }
 
