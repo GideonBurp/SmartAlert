@@ -8,9 +8,11 @@ import cn.gideon.smartalert.user.dto.RegisterRequest;
 import cn.gideon.smartalert.user.entity.User;
 import cn.gideon.smartalert.user.mapper.UserMapper;
 import cn.dev33.satoken.stp.StpUtil;
+import cn.gideon.smartalert.web.filter.SlidingWindowRateLimiter;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,9 @@ public class UserService {
     private final UserMapper userMapper;
     private final StringRedisTemplate redisTemplate;
 
+    @Autowired
+    private SlidingWindowRateLimiter slidingWindowRateLimiter;
+
     /**
      * 验证码 Redis Key 前缀
      */
@@ -39,6 +44,7 @@ public class UserService {
      * 验证码有效期（秒）
      */
     private static final long VERIFY_CODE_EXPIRE = 300;
+
 
     /**
      * 管理员注册（需要密码）
@@ -85,6 +91,11 @@ public class UserService {
      * 发送验证码
      */
     public void sendVerifyCode(String telephone) {
+        Boolean access = slidingWindowRateLimiter.tryAcquire(telephone, 1, 60);
+
+        if (!access) {
+            throw new BusinessException("请求频繁");
+        }
         // 生成6位随机验证码
         String code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
         
