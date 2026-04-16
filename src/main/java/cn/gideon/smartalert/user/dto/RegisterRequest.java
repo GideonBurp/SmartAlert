@@ -34,6 +34,11 @@ public class RegisterRequest implements Serializable {
     private String telephone;
 
     /**
+     * 性别: MALE-男, FEMALE-女, UNKNOWN-未知
+     */
+    private String gender;
+
+    /**
      * 邮箱
      */
     private String email;

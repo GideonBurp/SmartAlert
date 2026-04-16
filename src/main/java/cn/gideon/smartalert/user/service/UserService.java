@@ -73,6 +73,7 @@ public class UserService {
         user.setTelephone(request.getTelephone());
         user.setEmail(request.getEmail());
         user.setNickname(request.getUsername());
+        user.setGender(request.getGender() != null ? request.getGender() : "UNKNOWN");
         user.setState(UserStateEnum.INIT.name());
         user.setUserRole(UserRole.CUSTOMER.name());
         user.setCertification(false);
@@ -104,6 +105,8 @@ public class UserService {
         redisTemplate.opsForValue().set(key, code, VERIFY_CODE_EXPIRE, TimeUnit.SECONDS);
         
         // TODO: 实际项目中需要调用短信服务发送验证码
+        //我现在想做一个到点主动推送信息的功能
+        //1. 用户录入信息, 包含主题, 信息被推送人姓名, 性别,手机号,
         log.info("手机号 {} 的验证码为: {}", telephone, code);
     }
 
@@ -163,6 +166,7 @@ public class UserService {
         user.setPassword(""); // 验证码登录不需要密码
         user.setTelephone(telephone);
         user.setNickname("用户" + telephone.substring(7));
+        user.setGender("UNKNOWN");
         user.setState(UserStateEnum.INIT.name());
         user.setUserRole(UserRole.CUSTOMER.name());
         user.setCertification(false);
