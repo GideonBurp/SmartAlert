@@ -7,7 +7,7 @@ spring:
   
   # 数据源配置
   datasource:
-    url: jdbc:mysql://192.168.8.5:3306/smart_alert?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://192.168.8.5:3306/smart_alert?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: nfturbo
     password: NFTurbo666
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -40,6 +40,13 @@ spring:
           max-wait: -1ms
           max-idle: 8
           min-idle: 0
+  sms:
+    enabled: false
+    host:
+    path:
+    appcode:
+    smsSignId:
+    templateId:
 
 # Sa-Token配置
 sa-token:

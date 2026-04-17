@@ -5,8 +5,10 @@ import cn.dev33.satoken.stp.StpUtil;
 import cn.gideon.smartalert.common.response.Result;
 import cn.gideon.smartalert.user.dto.RealNameAuthRequest;
 import cn.gideon.smartalert.user.dto.UpdateUserInfoRequest;
+import cn.gideon.smartalert.user.dto.UserPageRequest;
 import cn.gideon.smartalert.user.entity.User;
 import cn.gideon.smartalert.user.service.UserService;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -83,5 +85,17 @@ public class UserController {
     public Result<Void> unfreezeUser(@PathVariable Long userId) {
         userService.unfreezeUser(userId);
         return Result.success("用户已解冻", null);
+    }
+
+    /**
+     * 分页条件查询用户列表（管理员权限）
+     */
+    @GetMapping("/page")
+    @SaCheckRole("ADMIN")
+    public Result<Page<User>> getUserPage(@Valid UserPageRequest request) {
+        Page<User> userPage = userService.getUserPage(request);
+        // 隐藏密码信息
+        userPage.getRecords().forEach(user -> user.setPassword(null));
+        return Result.success(userPage);
     }
 }

@@ -7,11 +7,13 @@ import cn.gideon.smartalert.user.dto.LoginRequest;
 import cn.gideon.smartalert.user.dto.RealNameAuthRequest;
 import cn.gideon.smartalert.user.dto.RegisterRequest;
 import cn.gideon.smartalert.user.dto.UpdateUserInfoRequest;
+import cn.gideon.smartalert.user.dto.UserPageRequest;
 import cn.gideon.smartalert.user.entity.User;
 import cn.gideon.smartalert.user.mapper.UserMapper;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.gideon.smartalert.web.filter.SlidingWindowRateLimiter;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -329,5 +331,47 @@ public class UserService {
         userMapper.updateById(user);
 
         log.info("用户实名认证成功: {}", userId);
+    }
+
+    /**
+     * 分页条件查询用户列表
+     */
+    public Page<User> getUserPage(UserPageRequest request) {
+        // 创建分页对象
+        Page<User> page = new Page<>(request.getPageNum(), request.getPageSize());
+        
+        // 构建查询条件
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        
+        // 用户名模糊查询
+        if (request.getUsername() != null && !request.getUsername().isEmpty()) {
+            wrapper.like(User::getUsername, request.getUsername());
+        }
+        
+        // 手机号模糊查询
+        if (request.getTelephone() != null && !request.getTelephone().isEmpty()) {
+            wrapper.like(User::getTelephone, request.getTelephone());
+        }
+        
+        // 用户状态精确查询
+        if (request.getState() != null && !request.getState().isEmpty()) {
+            wrapper.eq(User::getState, request.getState());
+        }
+        
+        // 用户角色精确查询
+        if (request.getUserRole() != null && !request.getUserRole().isEmpty()) {
+            wrapper.eq(User::getUserRole, request.getUserRole());
+        }
+        
+        // 实名认证状态查询
+        if (request.getCertification() != null) {
+            wrapper.eq(User::getCertification, request.getCertification());
+        }
+        
+        // 按创建时间倒序排列
+        wrapper.orderByDesc(User::getCreateTime);
+        
+        // 执行分页查询
+        return userMapper.selectPage(page, wrapper);
     }
 }
