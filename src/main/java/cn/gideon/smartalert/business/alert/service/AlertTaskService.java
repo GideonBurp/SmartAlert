@@ -1,10 +1,15 @@
 package cn.gideon.smartalert.business.alert.service;
 
 import cn.gideon.smartalert.business.alert.dto.CreateAlertTaskRequest;
+import cn.gideon.smartalert.business.alert.dto.AlertTaskResponse;
+import cn.gideon.smartalert.business.alert.dto.PageRequest;
+import cn.gideon.smartalert.business.alert.dto.PageResponse;
+import cn.gideon.smartalert.business.alert.dto.UpdateAlertTaskRequest;
 import cn.gideon.smartalert.business.alert.entity.AlertTask;
 import cn.gideon.smartalert.business.alert.mapper.AlertTaskMapper;
 import cn.gideon.smartalert.common.exception.BusinessException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -15,9 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * 推送任务服务
@@ -283,5 +290,149 @@ public class AlertTaskService {
         }
 
         log.info("成功恢复 {} 个待执行任务", count);
+    }
+
+    /**
+     * 查询用户的任务列表（不分页）
+     */
+    public List<AlertTaskResponse> getTaskList(Long userId, Integer status) {
+        LambdaQueryWrapper<AlertTask> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(AlertTask::getUserId, userId)
+                .eq(status != null, AlertTask::getStatus, status)
+                .orderByDesc(AlertTask::getCreateTime);
+
+        List<AlertTask> tasks = alertTaskMapper.selectList(wrapper);
+        
+        return tasks.stream().map(this::convertToResponse).collect(Collectors.toList());
+    }
+
+    /**
+     * 分页查询用户的任务列表
+     */
+    public PageResponse<AlertTaskResponse> getTaskPage(Long userId, Integer status, PageRequest pageRequest) {
+        // 创建分页对象
+        Page<AlertTask> page = new Page<>(pageRequest.getPageNum(), pageRequest.getPageSize());
+        
+        // 构建查询条件
+        LambdaQueryWrapper<AlertTask> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(AlertTask::getUserId, userId)
+                .eq(status != null, AlertTask::getStatus, status)
+                .orderByDesc(AlertTask::getCreateTime);
+
+        // 执行分页查询
+        Page<AlertTask> taskPage = alertTaskMapper.selectPage(page, wrapper);
+        
+        // 转换为响应DTO
+        List<AlertTaskResponse> records = taskPage.getRecords().stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+        
+        // 构建分页响应
+        PageResponse<AlertTaskResponse> response = new PageResponse<>();
+        response.setRecords(records);
+        response.setTotal(taskPage.getTotal());
+        response.setPageNum((int) taskPage.getCurrent());
+        response.setPageSize((int) taskPage.getSize());
+        response.setPages((int) taskPage.getPages());
+        
+        return response;
+    }
+
+    /**
+     * 查询任务详情
+     */
+    public AlertTaskResponse getTaskDetail(Long taskId, Long userId) {
+        AlertTask task = alertTaskMapper.selectById(taskId);
+        
+        if (task == null) {
+            throw new BusinessException("任务不存在");
+        }
+
+        if (!task.getUserId().equals(userId)) {
+            throw new BusinessException("无权访问该任务");
+        }
+
+        return convertToResponse(task);
+    }
+
+    /**
+     * 删除任务（逻辑删除）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteTask(Long taskId, Long userId) {
+        AlertTask task = alertTaskMapper.selectById(taskId);
+        
+        if (task == null) {
+            throw new BusinessException("任务不存在");
+        }
+
+        if (!task.getUserId().equals(userId)) {
+            throw new BusinessException("无权删除该任务");
+        }
+
+        // 已推送的任务不允许删除
+        if (task.getStatus() == 1) {
+            throw new BusinessException("已推送的任务不能删除");
+        }
+
+        // 从 Redis ZSet 移除
+        redisTemplate.opsForZSet().remove(ALERT_SCHEDULE_KEY, taskId.toString());
+        
+        // 逻辑删除
+        alertTaskMapper.deleteById(taskId);
+        
+        log.info("任务删除成功: taskId={}", taskId);
+    }
+
+    /**
+     * 更新任务信息
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateTask(Long taskId, UpdateAlertTaskRequest request, Long userId) {
+        AlertTask task = alertTaskMapper.selectById(taskId);
+        
+        if (task == null) {
+            throw new BusinessException("任务不存在");
+        }
+
+        if (!task.getUserId().equals(userId)) {
+            throw new BusinessException("无权修改该任务");
+        }
+
+        // 已推送的任务不允许修改
+        if (task.getStatus() == 1) {
+            throw new BusinessException("已推送的任务不能修改");
+        }
+
+        // 更新字段
+        task.setRecipientName(request.getRecipientName());
+        task.setRecipientGender(request.getRecipientGender() != null ? request.getRecipientGender() : "UNKNOWN");
+        task.setRecipientPhone(request.getRecipientPhone());
+        task.setAlertType(request.getAlertType());
+        task.setContent(request.getContent());
+
+        alertTaskMapper.updateById(task);
+        
+        log.info("任务更新成功: taskId={}", taskId);
+    }
+
+    /**
+     * 转换为响应DTO
+     */
+    private AlertTaskResponse convertToResponse(AlertTask task) {
+        AlertTaskResponse response = new AlertTaskResponse();
+        response.setId(task.getId());
+        response.setUserId(task.getUserId());
+        response.setTheme(task.getTheme());
+        response.setRecipientName(task.getRecipientName());
+        response.setRecipientGender(task.getRecipientGender());
+        response.setRecipientPhone(task.getRecipientPhone());
+        response.setAlertType(task.getAlertType());
+        response.setContent(task.getContent());
+        response.setAlertTime(task.getAlertTime());
+        response.setStatus(task.getStatus());
+        response.setRetryCount(task.getRetryCount());
+        response.setCreateTime(task.getCreateTime());
+        return response;
     }
 }

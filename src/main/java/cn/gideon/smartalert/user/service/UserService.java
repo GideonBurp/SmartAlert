@@ -4,7 +4,9 @@ import cn.gideon.smartalert.common.exception.BusinessException;
 import cn.gideon.smartalert.user.constant.UserRole;
 import cn.gideon.smartalert.user.constant.UserStateEnum;
 import cn.gideon.smartalert.user.dto.LoginRequest;
+import cn.gideon.smartalert.user.dto.RealNameAuthRequest;
 import cn.gideon.smartalert.user.dto.RegisterRequest;
+import cn.gideon.smartalert.user.dto.UpdateUserInfoRequest;
 import cn.gideon.smartalert.user.entity.User;
 import cn.gideon.smartalert.user.mapper.UserMapper;
 import cn.dev33.satoken.stp.StpUtil;
@@ -203,5 +205,129 @@ public class UserService {
     private String generateInviteCode() {
         // 简单实现：使用时间戳+随机数
         return UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+    }
+
+    /**
+     * 更新用户信息
+     */
+    public void updateUserInfo(Long userId, UpdateUserInfoRequest request) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // 只更新非空字段
+        if (request.getNickname() != null) {
+            user.setNickname(request.getNickname());
+        }
+        if (request.getEmail() != null) {
+            user.setEmail(request.getEmail());
+        }
+        if (request.getGender() != null) {
+            user.setGender(request.getGender());
+        }
+        if (request.getAvatar() != null) {
+            user.setAvatar(request.getAvatar());
+        }
+
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
+        log.info("用户信息更新成功: {}", userId);
+    }
+
+    /**
+     * 删除用户（逻辑删除）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteUser(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // MyBatis-Plus会自动处理逻辑删除
+        userMapper.deleteById(userId);
+        
+        // 如果用户已登录，强制登出
+        if (StpUtil.isLogin(userId)) {
+            StpUtil.logout(userId);
+        }
+        
+        log.info("用户删除成功: {}", userId);
+    }
+
+    /**
+     * 冻结用户
+     */
+    public void freezeUser(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        if (UserStateEnum.FROZEN.name().equals(user.getState())) {
+            throw new BusinessException("用户已被冻结");
+        }
+
+        user.setState(UserStateEnum.FROZEN.name());
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
+
+        // 强制登出
+        if (StpUtil.isLogin(userId)) {
+            StpUtil.logout(userId);
+        }
+
+        log.info("用户冻结成功: {}", userId);
+    }
+
+    /**
+     * 解冻用户
+     */
+    public void unfreezeUser(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        if (!UserStateEnum.FROZEN.name().equals(user.getState())) {
+            throw new BusinessException("用户未被冻结");
+        }
+
+        user.setState(UserStateEnum.INIT.name());
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
+
+        log.info("用户解冻成功: {}", userId);
+    }
+
+    /**
+     * 实名认证
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void realNameAuth(Long userId, RealNameAuthRequest request) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        if (user.getCertification()) {
+            throw new BusinessException("用户已完成实名认证");
+        }
+
+        if (UserStateEnum.FROZEN.name().equals(user.getState())) {
+            throw new BusinessException("账号已被冻结，无法认证");
+        }
+
+        // TODO: 实际项目中需要调用第三方API验证身份证信息
+        // TODO: 保存身份证照片到对象存储
+        
+        // 更新认证状态
+        user.setCertification(true);
+        user.setState(UserStateEnum.AUTH.name());
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
+
+        log.info("用户实名认证成功: {}", userId);
     }
 }
